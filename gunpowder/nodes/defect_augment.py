@@ -126,12 +126,21 @@ class DefectAugment(BatchFilter):
         self.slice_to_augmentation = {}
         # store the transformations for deform slice
         self.deform_slice_transformations = {}
+
+        consecutive_missing = 0
         for c in range((roi / raw_voxel_size).get_shape()[self.axis]):
             r = random.random()
 
-            if r < prob_missing_threshold:
+            if consecutive_missing > 0:
                 logger.debug("Zero-out " + str(c))
                 self.slice_to_augmentation[c] = 'zero_out'
+                consecutive_missing -= 1
+
+            elif r < prob_missing_threshold:
+                logger.debug("Zero-out " + str(c))
+                self.slice_to_augmentation[c] = 'zero_out'
+                # max 4 consecutive missing including this one
+                consecutive_missing = int(random.random() * 4)
 
             elif r < prob_low_contrast_threshold:
                 logger.debug("Lower contrast " + str(c))

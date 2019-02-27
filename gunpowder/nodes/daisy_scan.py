@@ -22,7 +22,7 @@ class DaisyScan(Scan):
     def setup(self):
 
         super().setup()
-        self.daisy_sched = daisy.Actor()
+        self.daisy_sched = daisy.Client()
 
 
     def provide(self, request):
@@ -35,7 +35,7 @@ class DaisyScan(Scan):
             logger.info("DaisyScan acquire_block")
             block = self.daisy_sched.acquire_block()
 
-            if block == daisy.Actor.END_OF_BLOCK:
+            if block == None:
                 logger.info("END_OF_BLOCK received from Daisy. Exiting.")
                 break;
 
