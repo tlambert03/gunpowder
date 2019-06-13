@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from .add_affinities import AddAffinities
 from .balance_labels import BalanceLabels
+# from .balance_labels_myelin import BalanceLabelsMyelin
 from .batch_filter import BatchFilter
 from .batch_provider import BatchProvider
 from .crop import Crop
