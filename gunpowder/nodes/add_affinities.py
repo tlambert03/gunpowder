@@ -56,6 +56,7 @@ class AddAffinities(BatchFilter):
             affinities,
             labels_mask=None,
             unlabelled=None,
+            unlabelled_z_fix=False,
             affinities_mask=None):
 
         self.affinity_neighborhood = np.array(affinity_neighborhood)
@@ -64,6 +65,7 @@ class AddAffinities(BatchFilter):
         self.labels_mask = labels_mask
         self.affinities = affinities
         self.affinities_mask = affinities_mask
+        self.unlabelled_z_fix = unlabelled_z_fix
 
     def setup(self):
 
@@ -151,7 +153,6 @@ class AddAffinities(BatchFilter):
                 self.affinity_neighborhood
         ).astype(np.uint8)
 
-
         # crop affinities to requested ROI
         offset = affinities_roi.get_offset()
         shift = -offset - self.padding_neg
@@ -182,6 +183,21 @@ class AddAffinities(BatchFilter):
                 affinities_mask = np.ones_like(affinities)
 
             if self.unlabelled:
+
+                if self.unlabelled_z_fix:
+                    # z-affinity is masked out between labeleld and unlabeled voxels
+                    unlabelled = np.copy(batch.arrays[self.unlabelled].data)
+                    unlabelled_mask = malis.seg_to_affgraph(
+                        unlabelled.astype(np.int32),
+                        self.affinity_neighborhood)
+                    unlabelled_mask = unlabelled_mask[(slice(None),)+crop]
+
+                    # combine with mask, but only for z-dim
+                    # assuming z first. TODO: use neighborhood
+                    affinities_mask[0] = affinities_mask[0]*unlabelled_mask[0]
+
+                    # print(affinities_mask)
+                    # assert False
 
                 # 1 for all affinities between unlabelled voxels
                 unlabelled = (1 - batch.arrays[self.unlabelled].data)
