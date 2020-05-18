@@ -1,6 +1,24 @@
-import unittest
-from gunpowder import *
-from gunpowder.points import PointsKeys, Points, Point
+from gunpowder import (
+    BatchProvider,
+    Batch,
+    BatchRequest,
+    PointsSpec,
+    PointsKeys,
+    PointsKey,
+    Points,
+    Point,
+    ArraySpec,
+    ArrayKeys,
+    ArrayKey,
+    Array,
+    Roi,
+    Coordinate,
+    ElasticAugment,
+    RasterizeGraph,
+    RasterizationSettings,
+    Snapshot,
+    build,
+)
 from .provider_test import ProviderTest
 
 import numpy as np
@@ -96,7 +114,7 @@ class TestElasticAugment(ProviderTest):
                 [0, 2.0*math.pi]) + # rotate randomly
                 # [math.pi/4, math.pi/4]) + # rotate by 45 deg
                 # [0, 0]) + # no rotation
-            RasterizePoints(
+            RasterizeGraph(
                 test_points,
                 test_raster,
                 settings=RasterizationSettings(
