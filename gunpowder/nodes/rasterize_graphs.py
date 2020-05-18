@@ -2,6 +2,7 @@ import copy
 import logging
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
+from skimage import draw
 
 from .batch_filter import BatchFilter
 from gunpowder.array import Array
@@ -87,8 +88,9 @@ class RasterizationSettings(Freezable):
         self.bg_value = bg_value
         self.freeze()
 
-class RasterizeGraphs(BatchFilter):
-    '''Draw graphs into a binary array as balls/tubes of a given radius.
+
+class RasterizeGraph(BatchFilter):
+    """Draw graphs into a binary array as balls/tubes of a given radius.
 
     Args:
 
@@ -105,7 +107,7 @@ class RasterizeGraphs(BatchFilter):
 
         settings (:class:`RasterizationSettings`, optional):
             Which settings to use to rasterize the graph.
-    '''
+    """
 
     def __init__(self, graph, array, array_spec=None, settings=None):
 
@@ -197,8 +199,9 @@ class RasterizeGraphs(BatchFilter):
 
         if graph.num_vertices == 0:
             # If there are no nodes at all, just create an empty matrix.
-            rasterized_points_data = np.zeros(data_roi.get_shape(),
-                                              dtype=self.spec[self.array].dtype)
+            rasterized_graph_data = np.zeros(
+                data_roi.get_shape(), dtype=self.spec[self.array].dtype
+            )
         elif mask is not None:
 
             mask_array = batch.arrays[mask].crop(enlarged_vol_roi)
@@ -272,18 +275,19 @@ class RasterizeGraphs(BatchFilter):
         logger.debug("Rasterizing graph in %s", graph.spec.roi)
 
         # prepare output array
-        rasterized_points = np.zeros(data_roi.get_shape(), dtype=dtype)
+        rasterized_graph = np.zeros(data_roi.get_shape(), dtype=dtype)
 
         # Fast rasterization currently only implemented for mode ball without
         # inner radius set
         use_fast_rasterization = (
-            settings.mode == 'ball' and
-            settings.inner_radius_fraction is None
+            settings.mode == "ball"
+            and settings.inner_radius_fraction is None
+            and len(list(graph.edges)) == 0
         )
 
         if use_fast_rasterization:
 
-            dims = len(rasterized_points.shape)
+            dims = len(rasterized_graph.shape)
 
             # get structuring element for mode ball
             ball_kernel = create_ball_kernel(settings.radius, voxel_size)
@@ -323,21 +327,28 @@ class RasterizeGraphs(BatchFilter):
                 arr_crop_ind = arr_crop.get_bounding_box()
                 kernel_crop_ind = kernel_crop.get_bounding_box()
 
-                rasterized_points[arr_crop_ind] = np.logical_or(
-                    ball_kernel[kernel_crop_ind],
-                    rasterized_points[arr_crop_ind])
+                rasterized_graph[arr_crop_ind] = np.logical_or(
+                    ball_kernel[kernel_crop_ind], rasterized_graph[arr_crop_ind]
+                )
 
             else:
 
-                rasterized_points[v] = 1
+                rasterized_graph[v] = 1
+        for e in graph.edges:
+            u = graph.node(e.u)
+            v = graph.node(e.v)
+            u_coord = Coordinate(u.location / voxel_size)
+            v_coord = Coordinate(v.location / voxel_size)
+            line = draw.line_nd(u_coord, v_coord, endpoint=True)
+            rasterized_graph[line] = 1
 
         # grow graph
         if not use_fast_rasterization:
 
-            if settings.mode == 'ball':
+            if settings.mode == "ball":
 
                 enlarge_binary_map(
-                    rasterized_points,
+                    rasterized_graph,
                     settings.radius,
                     voxel_size,
                     1.0 - settings.inner_radius_fraction,
@@ -348,21 +359,19 @@ class RasterizeGraphs(BatchFilter):
                 sigmas = settings.radius/voxel_size
 
                 gaussian_filter(
-                    rasterized_points,
-                    sigmas,
-                    output=rasterized_points,
-                    mode='constant')
+                    rasterized_graph, sigmas, output=rasterized_graph, mode="constant"
+                )
 
                 # renormalize to have 1 be the highest value
-                max_value = np.max(rasterized_points)
+                max_value = np.max(rasterized_graph)
                 if max_value > 0:
-                    rasterized_points /= max_value
+                    rasterized_graph /= max_value
 
         if mask_array is not None:
             # use more efficient bitwise operation when possible
-            if settings.mode == 'ball':
-                rasterized_points &= mask
+            if settings.mode == "ball":
+                rasterized_graph &= mask
             else:
-                rasterized_points *= mask
+                rasterized_graph *= mask
 
-        return rasterized_points
+        return rasterized_graph
