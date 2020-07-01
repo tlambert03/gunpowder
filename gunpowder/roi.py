@@ -268,7 +268,7 @@ class Roi(Freezable):
 
                 How to align the ROI if it is not a multiple of the voxel size.
                 Available modes are 'grow', 'shrink', and 'closest'. Defaults to
-                'grow'.
+                'grow'. 'closest' ensures the ROI stays the same size.
         '''
 
         begin_in_voxel_fractions = (
@@ -280,7 +280,7 @@ class Roi(Freezable):
 
         if mode == 'closest':
             begin_in_voxel = np.round(begin_in_voxel_fractions)
-            end_in_voxel = np.round(end_in_voxel_fractions)
+            end_in_voxel = begin_in_voxel + (self.get_shape() / voxel_size)
         elif mode == 'grow':
             begin_in_voxel = np.floor(begin_in_voxel_fractions)
             end_in_voxel = np.ceil(end_in_voxel_fractions)
