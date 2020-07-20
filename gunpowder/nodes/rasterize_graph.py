@@ -62,6 +62,21 @@ class RasterizationSettings(Freezable):
 
             The value to use to for the background in the output array,
             defaults to 0.
+
+        edges (``bool``, optional):
+
+            Whether to rasterize edges by linearly interpolating between Nodes.
+            Default is True.
+
+        color_attr (``str``, optional)
+
+            Which graph attribute to use for coloring nodes and edges. One
+            useful example might be `component` which would color your graph
+            based on the component labels.
+            Notes: 
+            - Only available in "ball" mode
+            - Nodes and Edges missing the attribute will be skipped.
+            - color_attr must be populated for nodes and edges upstream of this node
     '''
     def __init__(
             self,
@@ -70,7 +85,10 @@ class RasterizationSettings(Freezable):
             mask=None,
             inner_radius_fraction=None,
             fg_value=1,
-            bg_value=0):
+            bg_value=0,
+            edges=True,
+            color_attr=None,
+            ):
 
         radius = np.array([radius]).flatten().astype(np.float64)
 
@@ -87,6 +105,8 @@ class RasterizationSettings(Freezable):
         self.inner_radius_fraction = inner_radius_fraction
         self.fg_value = fg_value
         self.bg_value = bg_value
+        self.edges = edges
+        self.color_attr = color_attr
         self.freeze()
 
 
@@ -334,14 +354,39 @@ class RasterizeGraph(BatchFilter):
 
             else:
 
-                rasterized_graph[v] = 1
-        for e in graph.edges:
-            u = graph.node(e.u)
-            v = graph.node(e.v)
-            u_coord = Coordinate(u.location / voxel_size)
-            v_coord = Coordinate(v.location / voxel_size)
-            line = draw.line_nd(u_coord, v_coord, endpoint=True)
-            rasterized_graph[line] = 1
+                if settings.color_attr is not None:
+                    c = graph.nodes[node].get(settings.color_attr)
+                    if c is None:
+                        logger.debug(f"Skipping node: {node}")
+                        continue
+                    elif np.isclose(c, 1) and not np.isclose(settings.fg_value, 1):
+                        logger.warning(
+                            f"Node {node} is being colored with color {c} according to "
+                            f"attribute {settings.color_attr} "
+                            f"but color 1 will be replaced with fg_value: {settings.fg_value}"
+                            )
+                else:
+                    c = 1
+                rasterized_graph[v] = c
+        if settings.edges:
+            for e in graph.edges:
+                if settings.color_attr is not None:
+                    c = graph.edges[e].get(settings.color_attr)
+                    if c is None:
+                        continue
+                    elif np.isclose(c, 1) and not np.isclose(settings.fg_value, 1):
+                        logger.warning(
+                            f"Edge {e} is being colored with color {c} according to "
+                            f"attribute {settings.color_attr} "
+                            f"but color 1 will be replaced with fg_value: {settings.fg_value}"
+                            )
+
+                u = graph.node(e.u)
+                v = graph.node(e.v)
+                u_coord = Coordinate(u.location / voxel_size)
+                v_coord = Coordinate(v.location / voxel_size)
+                line = draw.line_nd(u_coord, v_coord, endpoint=True)
+                rasterized_graph[line] = 1
 
         # grow graph
         if not use_fast_rasterization:
