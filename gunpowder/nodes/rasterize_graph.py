@@ -79,6 +79,7 @@ class RasterizationSettings(Freezable):
                 inner_radius_fraction > 0.0 and
                 inner_radius_fraction < 1.0), (
                     "Inner radius fraction has to be between (excluding) 0 and 1")
+            inner_radius_fraction = 1.0 - inner_radius_fraction
 
         self.radius = radius
         self.mode = mode
@@ -351,7 +352,7 @@ class RasterizeGraph(BatchFilter):
                     rasterized_graph,
                     settings.radius,
                     voxel_size,
-                    1.0 - settings.inner_radius_fraction,
+                    settings.inner_radius_fraction,
                     in_place=True)
 
             else:
