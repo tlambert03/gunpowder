@@ -111,7 +111,9 @@ class GraphTestSourceWithEdge(BatchProvider):
 
         graph_roi = request[GraphKeys.TEST_GRAPH_WITH_EDGE].roi
 
-        batch.graphs[GraphKeys.TEST_GRAPH_WITH_EDGE] = self.graph.crop(graph_roi, copy=True).trim(graph_roi)
+        batch.graphs[GraphKeys.TEST_GRAPH_WITH_EDGE] = self.graph.crop(graph_roi).trim(
+            graph_roi
+        )
 
         return batch
 
@@ -275,6 +277,7 @@ class TestRasterizePoints(ProviderTest):
             GraphKeys.TEST_GRAPH_WITH_EDGE,
             ArrayKeys.RASTERIZED_EDGE,
             ArraySpec(voxel_size=(1, 1, 1)),
+            settings=RasterizationSettings(0.5),
         )
 
         with build(pipeline):
@@ -288,4 +291,6 @@ class TestRasterizePoints(ProviderTest):
 
             rasterized = batch.arrays[ArrayKeys.RASTERIZED_EDGE].data
 
-            assert rasterized.sum() == 10
+            assert (
+                rasterized.sum() == 10
+            ), f"rasterized has ones at: {np.where(rasterized==1)}"
