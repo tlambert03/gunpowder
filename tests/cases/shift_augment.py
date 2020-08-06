@@ -67,15 +67,15 @@ class TestShiftAugment2D(unittest.TestCase):
             self.fake_data_file, {key: "testdata"}, array_specs={key: spec}
         )
 
-        request = BatchRequest()
-        shape = Coordinate((3, 3))
-        request.add(key, shape, voxel_size=Coordinate((1, 1)))
-
         shift_node = ShiftAugment(sigma=1, shift_axis=0)
         with build((hdf5_source + shift_node)):
-            shift_node.prepare(request)
-            self.assertTrue(shift_node.ndim == 2)
-            self.assertTrue(shift_node.shift_sigmas == tuple([0.0, 1.0]))
+            for i in range(10):
+                request = BatchRequest(random_seed=i)
+                shape = Coordinate((3, 3))
+                request.add(key, shape, voxel_size=Coordinate((1, 1)))
+                shift_node.prepare(request)
+                self.assertTrue(shift_node.ndim == 2)
+                self.assertTrue(shift_node.shift_sigmas == tuple([0.0, 1.0]))
 
     def test_prepare2(self):
 
@@ -86,16 +86,17 @@ class TestShiftAugment2D(unittest.TestCase):
             self.fake_data_file, {key: "testdata"}, array_specs={key: spec}
         )
 
-        request = BatchRequest()
-        shape = Coordinate((3, 3))
-        request.add(key, shape)
 
         shift_node = ShiftAugment(sigma=1, shift_axis=0)
 
         with build((hdf5_source + shift_node)):
-            shift_node.prepare(request)
-            self.assertTrue(shift_node.ndim == 2)
-            self.assertTrue(shift_node.shift_sigmas == tuple([0.0, 1.0]))
+            for i in range(10):
+                request = BatchRequest(random_seed=i)
+                shape = Coordinate((3, 3))
+                request.add(key, shape)
+                shift_node.prepare(request)
+                self.assertTrue(shift_node.ndim == 2)
+                self.assertTrue(shift_node.shift_sigmas == tuple([0.0, 1.0]))
 
     def test_pipeline1(self):
 
@@ -124,7 +125,7 @@ class TestShiftAugment2D(unittest.TestCase):
             self.fake_data_file, {key: "testdata"}, array_specs={key: spec}
         )
 
-        request = BatchRequest()
+        request = BatchRequest(random_seed=4)
         shape = Coordinate((3, 3))
         request.add(key, shape, voxel_size=Coordinate((3, 1)))
 
@@ -147,40 +148,38 @@ class TestShiftAugment2D(unittest.TestCase):
             GraphSpec(roi=Roi(shape=Coordinate((100, 100)), offset=(0, 0))),
         )
 
-        request = BatchRequest()
-        shape = Coordinate((60, 60))
-        request.add(array_key, shape, voxel_size=Coordinate((1, 1)))
-        request.add(points_key, shape)
+        for i in range(10):
+            request = BatchRequest(random_seed=i)
+            shape = Coordinate((60, 60))
+            request.add(array_key, shape, voxel_size=Coordinate((1, 1)))
+            request.add(points_key, shape)
 
-        shift_node = ShiftAugment(prob_slip=0.2, prob_shift=0.2, sigma=5, shift_axis=0)
-        pipeline = (
-            (hdf5_source, csv_source)
-            + MergeProvider()
-            + RandomLocation(ensure_nonempty=points_key)
-            + shift_node
-        )
-        with build(pipeline) as b:
-            request = b.request_batch(request)
-            # print(request[points_key])
-
-        target_vals = [self.fake_data[point[0]][point[1]] for point in self.fake_points]
-        result_data = request[array_key].data
-        result_points = list(request[points_key].nodes)
-        result_vals = [
-            result_data[int(point.location[0])][int(point.location[1])]
-            for point in result_points
-        ]
-
-        for result_val in result_vals:
-            self.assertTrue(
-                result_val in target_vals,
-                msg="result value {} at points {} not in target values {} at points {}".format(
-                    result_val,
-                    list(result_points),
-                    target_vals,
-                    self.fake_points,
-                ),
+            shift_node = ShiftAugment(prob_slip=0.2, prob_shift=0.2, sigma=5, shift_axis=0)
+            pipeline = (
+                (hdf5_source, csv_source)
+                + MergeProvider()
+                + RandomLocation(ensure_nonempty=points_key)
+                + shift_node
             )
+            with build(pipeline) as b:
+                request = b.request_batch(request)
+                # print(request[points_key])
+
+            target_vals = [self.fake_data[point[0]][point[1]] for point in self.fake_points]
+            result_data = request[array_key].data
+            result_points = list(request[points_key].nodes)
+            result_vals = [
+                result_data[int(point.location[0])][int(point.location[1])]
+                for point in result_points
+            ]
+
+            for result_val in result_vals:
+                self.assertTrue(
+                    result_val in target_vals,
+                    msg="result value {} at points {} not in target values {} at points {}".format(
+                        result_val, list(result_points), target_vals, self.fake_points,
+                    ),
+                )
 
     ##################
     # shift_and_crop #
@@ -281,7 +280,7 @@ class TestShiftAugment2D(unittest.TestCase):
     def points_equal(vertices1, vertices2):
         vs1 = sorted(list(vertices1), key=lambda v: tuple(v.location))
         vs2 = sorted(list(vertices2), key=lambda v: tuple(v.location))
-    
+
         for v1, v2 in zip(vs1, vs2):
             if not v1.id == v2.id:
                 print(f"{vs1}, {vs2}")
@@ -347,7 +346,9 @@ class TestShiftAugment2D(unittest.TestCase):
         shift_array = np.array([[0, 1], [0, -1], [0, 0], [0, 0], [0, 1]], dtype=int)
         lcm_voxel_size = Coordinate((1, 1))
 
-        shifted_points = Graph([Node(id=1, location=np.array([0, 2]))], [], GraphSpec(request_roi))
+        shifted_points = Graph(
+            [Node(id=1, location=np.array([0, 2]))], [], GraphSpec(request_roi)
+        )
         result = ShiftAugment.shift_points(
             points,
             request_roi,
