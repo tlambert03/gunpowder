@@ -16,6 +16,13 @@ class RandomSourceGenerator:
             How many times the generator will be used in a pipeline.
             Only the first request to the RandomSource will have a 
             random source chosen. Future calls will use the same source.
+
+        probabilities (`numpy array`):
+
+           The probability of each branch getting chosen. Any probabilities
+           will be normalized to the sum of one. This way you can give the
+           volume of each source and it will each volume proportionatly to
+           it's size.
     '''
     def __init__(self, num_sources, probabilities=None, repetitions=1):
         self.repetitions = repetitions
