@@ -68,8 +68,7 @@ class RandomMultiBranchPointSource(gp.BatchProvider):
             self,
             graph_key,
             density=None,
-            random_point_generator=None,
-            shrink_by=None):
+            random_point_generator=None):
         '''A source creating uniformly distributed points.
 
         Args:
@@ -103,7 +102,6 @@ class RandomMultiBranchPointSource(gp.BatchProvider):
             self.random_point_generator = RandomPointGenerator(density=density)
         else:
             self.random_point_generator = random_point_generator
-        self.shrink_by = shrink_by
 
     def setup(self):
 
@@ -118,25 +116,13 @@ class RandomMultiBranchPointSource(gp.BatchProvider):
     def provide(self, request):
 
         roi = request[self.graph_key].roi
-        if self.shrink_by is not None:
-            roi = roi / self.shrink_by 
 
         random_points = self.random_point_generator.get_random_points(roi)
 
         batch = gp.Batch()
-        if self.shrink_by is None:
-            batch[self.graph_key] = gp.Graph(
-                [gp.Node(id=i, location=l) for i, l in random_points.items()],
-                [],
-                gp.GraphSpec(roi=roi))
-        else:
-            print(list(random_points.items()))
-            print(list(random_points.values())[0]* np.array(self.shrink_by))
-            # Put graph back into original roi
-            batch[self.graph_key] = gp.Graph(
-                [gp.Node(id=i, location=l)
-                 for i, l in random_points.items()],
-                [],
-                gp.GraphSpec(roi=roi))
+        batch[self.graph_key] = gp.Graph(
+            [gp.Node(id=i, location=l) for i, l in random_points.items()],
+            [],
+            gp.GraphSpec(roi=roi))
 
         return batch
