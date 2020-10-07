@@ -4,6 +4,7 @@ import numpy as np
 from .batch_filter import BatchFilter
 from gunpowder.array import Array
 from gunpowder.batch_request import BatchRequest
+from gunpowder.batch import Batch
 from gunpowder.coordinate import Coordinate
 from gunpowder.ext import malis
 
@@ -135,6 +136,7 @@ class AddAffinities(BatchFilter):
         return deps
 
     def process(self, batch, request):
+        outputs = Batch()
 
         affinities_roi = request[self.affinities].roi
 
@@ -157,7 +159,7 @@ class AddAffinities(BatchFilter):
 
         spec = self.spec[self.affinities].copy()
         spec.roi = affinities_roi
-        batch.arrays[self.affinities] = Array(affinities, spec)
+        outputs.arrays[self.affinities] = Array(affinities, spec)
 
         if self.affinities_mask and self.affinities_mask in request:
 
@@ -190,7 +192,7 @@ class AddAffinities(BatchFilter):
                 affinities_mask = affinities_mask*unlabelled_mask
 
             affinities_mask = affinities_mask.astype(affinities.dtype)
-            batch.arrays[self.affinities_mask] = Array(affinities_mask, spec)
+            outputs.arrays[self.affinities_mask] = Array(affinities_mask, spec)
 
         else:
 
@@ -198,21 +200,7 @@ class AddAffinities(BatchFilter):
                 logger.warning("GT labels does have a mask, but affinities "
                                "mask is not requested.")
 
-        # crop labels to original label ROI
-        if self.labels in request:
-            roi = request[self.labels].roi
-            batch.arrays[self.labels] = batch.arrays[self.labels].crop(roi)
-
-        # same for label mask
-        if self.labels_mask and self.labels_mask in request:
-            roi = request[self.labels_mask].roi
-            batch.arrays[self.labels_mask] = \
-                batch.arrays[self.labels_mask].crop(roi)
-
-        # and unlabelled mask
-        if self.unlabelled and self.unlabelled in request:
-            roi = request[self.unlabelled].roi
-            batch.arrays[self.unlabelled] = \
-                batch.arrays[self.unlabelled].crop(roi)
-
+        # Should probably have a better way of handling arbitrary batch attributes
         batch.affinity_neighborhood = self.affinity_neighborhood
+
+        return outputs
