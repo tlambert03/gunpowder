@@ -6,7 +6,10 @@ except ImportError:
     string_types = str
 
 extras_require = {
-    'tensorflow': ['tensorflow<2'],
+    'tensorflow': [
+        'tensorflow<2.0; python_version<"3.8"',
+        'protobuf==3.20.*; python_version=="3.7"',  # https://stackoverflow.com/a/72493690
+    ],
     'pytorch': ['torch'],
 }
 
