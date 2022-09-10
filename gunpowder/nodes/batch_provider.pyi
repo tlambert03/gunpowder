@@ -1,14 +1,12 @@
+# flake8: noqa
 from __future__ import annotations
-from abc import abstractmethod
 
 from typing import List, Optional, Tuple, Union
-import numpy as np
 from gunpowder.pipeline import Pipeline
 
 from gunpowder.provider_spec import Key, ProviderSpec, Spec
 from gunpowder.batch import Batch
 from gunpowder.batch_request import BatchRequest
-from collections.abc import ABC
 
 class BatchRequestError(Exception):
     provider: BatchProvider
@@ -18,12 +16,11 @@ class BatchRequestError(Exception):
         self, provider: BatchProvider, request: BatchRequest, batch: Batch
     ): ...
 
-class BatchProvider(ABC):
+class BatchProvider:
     """Superclass for all nodes in a `gunpowder` graph."""
 
     _provided_items: List[Key]
 
-    @abstractmethod
     def setup(self):
         """To be implemented in subclasses.
 
@@ -33,30 +30,29 @@ class BatchProvider(ABC):
         In setup, call :func:`provides` to announce the arrays and points
         provided by this node.
         """
-    @abstractmethod
-    def provide(self, request: BatchRequest) -> Batch:
-        """To be implemented in subclasses.
-
-        This function takes a :class:`BatchRequest` and should return the
-        corresponding :class:`Batch`.
-        """
     def teardown(self) -> None:
         """To be implemented in subclasses.
 
         Called during destruction of the DAG. Subclasses should use this to
         stop worker processes, if they used some.
         """
-    def add_upstream_provider(self, provider: BatchProvider) -> BatchProvider: ...
-    def remove_upstream_providers(self) -> None: ...
-    def get_upstream_providers(self) -> List[BatchProvider]: ...
-    @property
-    def remove_placeholders(self) -> bool: ...
+    def provide(self, request: BatchRequest) -> Batch:
+        """To be implemented in subclasses.
+
+        This function takes a :class:`BatchRequest` and should return the
+        corresponding :class:`Batch`.
+        """
     def provides(self, key: Key, spec: Spec) -> None:
         """Introduce a new output provided by this :class:`BatchProvider`.
 
         Implementations should call this in their :func:`setup` method, which
         will be called when the pipeline is build.
         """
+    def add_upstream_provider(self, provider: BatchProvider) -> BatchProvider: ...
+    def remove_upstream_providers(self) -> None: ...
+    def get_upstream_providers(self) -> List[BatchProvider]: ...
+    @property
+    def remove_placeholders(self) -> bool: ...
     def internal_teardown(self) -> None: ...
     @property
     def spec(self) -> Optional[ProviderSpec]:
