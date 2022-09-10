@@ -38,6 +38,7 @@ from .snapshot import Snapshot
 from .specified_location import SpecifiedLocation
 from .squeeze import Squeeze
 from .stack import Stack
+from .tiff_source import TiffSource
 from .unsqueeze import Unsqueeze
 from .upsample import UpSample
 from .zarr_source import ZarrSource
