@@ -11,7 +11,7 @@ from .build import build
 from .coordinate import Coordinate
 from .graph import Graph, Node, Edge, GraphKey, GraphKeys
 from .graph_spec import GraphSpec
-from .pipeline import Pipeline, PipelineSetupError, PipelineTeardownError, PipelineRequestError
+from .pipeline import *
 from .producer_pool import ProducerPool
 from .provider_spec import ProviderSpec
 from .roi import Roi
