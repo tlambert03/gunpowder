@@ -1,15 +1,18 @@
-from .graph_spec import GraphSpec
-from .roi import Roi
+from __future__ import annotations
+
 from .freezable import Freezable
 
 import numpy as np
 import networkx as nx
 
 from copy import deepcopy
-from typing import Dict, Optional, Set, Iterator, Any
+from typing import TYPE_CHECKING, Dict, NoReturn, Optional, Set, Iterator, Any
 import logging
 import itertools
-import warnings
+
+if TYPE_CHECKING:
+    from .graph_spec import GraphSpec
+    from .roi import Roi
 
 
 logger = logging.getLogger(__name__)
@@ -73,37 +76,37 @@ class Node(Freezable):
             super().__setattr__(attr, value)
 
     @property
-    def location(self):
+    def location(self) -> np.ndarray:
         location = self.attrs["location"]
         return location
 
     @location.setter
-    def location(self, new_location):
+    def location(self, new_location: np.ndarray) -> None:
         assert isinstance(new_location, np.ndarray)
         self.attrs["location"] = new_location
 
     @property
-    def id(self):
+    def id(self) -> int:
         return self.attrs["id"]
 
     @property
-    def original_id(self):
+    def original_id(self) -> Optional[int]:
         return self.id if not self.temporary else None
 
     @property
-    def temporary(self):
+    def temporary(self) -> bool:
         return self.attrs["temporary"]
 
     @property
-    def attrs(self):
+    def attrs(self) -> Dict[str, Any]:
         return self.__attrs
 
     @property
-    def all(self):
+    def all(self) -> Dict[str, Any]:
         return self.attrs
 
     @classmethod
-    def from_attrs(cls, attrs: Dict[str, Any]):
+    def from_attrs(cls, attrs: Dict[str, Any]) -> Node:
         node_id = attrs["id"]
         location = attrs["location"]
         temporary = attrs.get("temporary", False)
@@ -146,36 +149,36 @@ class Edge(Freezable):
         self.freeze()
 
     @property
-    def u(self):
+    def u(self) -> int:
         return self.__u
 
     @property
-    def v(self):
+    def v(self) -> int:
         return self.__v
 
     @property
-    def all(self):
+    def all(self) -> Dict[str, Any]:
         return self.__attrs
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[int]:
         return iter([self.u, self.v])
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.u}, {self.v})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"({self.u}, {self.v})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: Edge) -> bool:
         return self.u == other.u and self.v == other.v
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.u, self.v))
 
-    def directed_eq(self, other):
+    def directed_eq(self, other: Edge) -> bool:
         return self.u == other.u and self.v == other.v
 
-    def undirected_eq(self, other):
+    def undirected_eq(self, other: Edge) -> bool:
         return set([self.u, self.v]) == set([other.u, other.v])
 
 
@@ -197,28 +200,29 @@ class Graph(Freezable):
 
             A spec describing the data.
     """
+    __graph: nx.Graph
 
     def __init__(self, nodes: Iterator[Node], edges: Iterator[Edge], spec: GraphSpec):
         self.__spec = spec
         self.__graph = self.create_graph(nodes, edges)
 
     @property
-    def spec(self):
+    def spec(self) -> GraphSpec:
         return self.__spec
 
     @spec.setter
-    def spec(self, new_spec):
+    def spec(self, new_spec: GraphSpec) -> None:
         self.__spec = new_spec
 
     @property
-    def directed(self):
+    def directed(self) -> bool:
         return (
             self.spec.directed
             if self.spec.directed is not None
             else self.__graph.is_directed()
         )
 
-    def create_graph(self, nodes: Iterator[Node], edges: Iterator[Edge]):
+    def create_graph(self, nodes: Iterator[Node], edges: Iterator[Edge]) -> nx.Graph:
         if self.__spec.directed is None:
             logger.debug(
                 "Trying to create a Graph without specifying directionality. Using default Directed!"
@@ -238,7 +242,7 @@ class Graph(Freezable):
         return graph
 
     @property
-    def nodes(self):
+    def nodes(self) -> Iterator[Node]:
         for node_id, node_attrs in self.__graph.nodes.items():
             v = Node.from_attrs(node_attrs)
             if not np.issubdtype(v.location.dtype, self.spec.dtype):
@@ -247,18 +251,18 @@ class Graph(Freezable):
                 )
             yield v
 
-    def num_vertices(self):
+    def num_vertices(self) -> int:
         return self.__graph.number_of_nodes()
 
-    def num_edges(self):
+    def num_edges(self) -> int:
         return self.__graph.number_of_edges()
 
     @property
-    def edges(self):
+    def edges(self) -> Iterator[Edge]:
         for (u, v), attrs in self.__graph.edges.items():
             yield Edge(u, v, attrs)
 
-    def neighbors(self, node):
+    def neighbors(self, node: Node) -> Iterator[Node]:
         if self.directed:
             for neighbor in self.__graph.successors(node.id):
                 yield Node.from_attrs(self.__graph.nodes[neighbor])
@@ -269,7 +273,7 @@ class Graph(Freezable):
             for neighbor in self.__graph.neighbors(node.id):
                 yield Node.from_attrs(self.__graph.nodes[neighbor])
 
-    def __str__(self):
+    def __str__(self) -> str:
         string = "Vertices:\n"
         for node in self.nodes:
             string += f"{node}\n"
@@ -278,20 +282,20 @@ class Graph(Freezable):
             string += f"{edge}\n"
         return string
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
-    def node(self, id: int):
+    def node(self, id: int) -> Node:
         """
         Get node with a specific id
         """
         attrs = self.__graph.nodes[id]
         return Node.from_attrs(attrs)
 
-    def contains(self, node_id: int):
+    def contains(self, node_id: int) -> bool:
         return node_id in self.__graph.nodes
 
-    def remove_node(self, node: Node, retain_connectivity=False):
+    def remove_node(self, node: Node, retain_connectivity: bool = False) -> None:
         """
         Remove a node.
 
@@ -312,7 +316,7 @@ class Graph(Freezable):
                         self.add_edge(Edge(pred_id, succ_id))
         self.__graph.remove_node(node.id)
 
-    def add_node(self, node: Node):
+    def add_node(self, node: Node) -> None:
         """
         Adds a node to the graph.
         If a node exists with the same id as the node you are adding,
@@ -321,13 +325,13 @@ class Graph(Freezable):
         node.location = node.location.astype(self.spec.dtype)
         self.__graph.add_node(node.id, **node.all)
 
-    def remove_edge(self, edge: Edge):
+    def remove_edge(self, edge: Edge) -> None:
         """
         Remove an edge from the graph.
         """
         self.__graph.remove_edge(edge.u, edge.v)
 
-    def add_edge(self, edge: Edge):
+    def add_edge(self, edge: Edge) -> None:
         """
         Adds an edge to the graph.
         If an edge exists with the same u and v, its attributes
@@ -335,10 +339,10 @@ class Graph(Freezable):
         """
         self.__graph.add_edge(edge.u, edge.v, **edge.all)
 
-    def copy(self):
+    def copy(self) -> Graph:
         return deepcopy(self)
 
-    def crop(self, roi: Roi):
+    def crop(self, roi: Roi) -> Graph:
         """
         Will remove all nodes from self that are not contained in `roi` except for
         "dangling" nodes. This means that if there are nodes A, B s.t. there
@@ -388,17 +392,17 @@ class Graph(Freezable):
         cropped.spec.roi = roi
         return cropped
 
-    def shift(self, offset):
+    def shift(self, offset: np.ndarray | int) -> None:
         for node in self.nodes:
             node.location += offset
 
-    def new_graph(self):
+    def new_graph(self) -> nx.Graph:
         if self.directed():
             return nx.DiGraph()
         else:
             return nx.Graph()
 
-    def trim(self, roi: Roi):
+    def trim(self, roi: Roi) -> Graph:
         """
         Create a copy of self and replace "dangling" nodes with contained nodes.
 
@@ -451,7 +455,7 @@ class Graph(Freezable):
         contained_nodes: Set[int],
         roi: Roi,
         node_id: Iterator[int],
-    ):
+    ) -> None:
         nodes_to_remove = set([])
         for e in crossing_edges:
             u, v = self.node(e.u), self.node(e.v)
@@ -510,7 +514,9 @@ class Graph(Freezable):
         )
         return new_location
 
-    def merge(self, other, copy_from_self=False, copy=False):
+    def merge(
+        self, other: Graph, copy_from_self: bool = False, copy: bool = False
+    ) -> NoReturn:
         """
         Merge this graph with another. The resulting graph will have the Roi
         of the larger one.
@@ -564,7 +570,7 @@ class Graph(Freezable):
 
         return merged
 
-    def to_nx_graph(self):
+    def to_nx_graph(self) -> nx.Graph:
         """
         returns a pure networkx graph containing data from
         this Graph.
@@ -572,7 +578,7 @@ class Graph(Freezable):
         return deepcopy(self.__graph)
 
     @classmethod
-    def from_nx_graph(cls, graph, spec):
+    def from_nx_graph(cls, graph: nx.Graph, spec: GraphSpec) -> Graph:
         """
         Create a gunpowder graph from a networkx graph
         """
@@ -582,7 +588,7 @@ class Graph(Freezable):
         g.__graph = graph
         return g
 
-    def relabel_connected_components(self):
+    def relabel_connected_components(self) -> None:
         """
         create a new attribute "component" for each node
         in this Graph
@@ -592,22 +598,22 @@ class Graph(Freezable):
                 self.__graph.nodes[node]["component"] = i
 
     @property
-    def connected_components(self):
+    def connected_components(self) -> Iterator[set]:
         if not self.directed:
             return nx.connected_components(self.__graph)
         else:
             return nx.weakly_connected_components(self.__graph)
 
-    def in_degree(self):
+    def in_degree(self) -> int:
         return self.__graph.in_degree()
 
-    def successors(self, node):
+    def successors(self, node: Node) -> Iterator:
         if self.directed:
             return self.__graph.successors(node.id)
         else:
             return self.__graph.neighbors(node.id)
 
-    def predecessors(self, node):
+    def predecessors(self, node: Node) -> Iterator:
         if self.directed:
             return self.__graph.predecessors(node.id)
         else:
@@ -632,20 +638,20 @@ class GraphKey(Freezable):
             same graph.
     """
 
-    def __init__(self, identifier):
+    def __init__(self, identifier: str) -> None:
         self.identifier = identifier
         self.hash = hash(identifier)
         self.freeze()
         logger.debug("Registering graph type %s", self)
         setattr(GraphKeys, self.identifier, self)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return hasattr(other, "identifier") and self.identifier == other.identifier
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self.hash
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.identifier
 
 
@@ -660,4 +666,6 @@ class GraphKeys:
         GraphKeys.CENTER_GRAPH
     """
 
-    pass
+    def __getattribute__(self, name: str) -> GraphKey: 
+        return super().__getattribute__(name)
+
