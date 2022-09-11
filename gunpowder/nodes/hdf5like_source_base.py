@@ -1,15 +1,33 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING, ContextManager
+
 import numpy as np
 
 from gunpowder.batch import Batch
+from gunpowder.batch_request import BatchRequest
 from gunpowder.coordinate import Coordinate
 from gunpowder.profiling import Timing
 from gunpowder.roi import Roi
-from gunpowder.array import Array
+from gunpowder.array import Array, ArrayKey
 from gunpowder.array_spec import ArraySpec
 from .batch_provider import BatchProvider
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from typing import Mapping, Protocol, Any
+
+    class SupportsAttrs(Protocol):
+        attrs: dict[str, Any]
+
+    class DataSet(SupportsAttrs, Protocol):
+        shape: tuple[int, ...]
+        dtype: np.dtype
+        def __getitem__(self, key: Any) -> np.ndarray: ...
+
+    DataFile = Mapping[str, DataSet]
 
 
 class Hdf5LikeSource(BatchProvider):
@@ -46,12 +64,13 @@ class Hdf5LikeSource(BatchProvider):
             better performance. If channels_first is set to false, then the input
             data is read in channels_last manner and converted to channels_first.
     '''
+
     def __init__(
             self,
-            filename,
-            datasets,
-            array_specs=None,
-            channels_first=True):
+            filename: str,
+            datasets: dict[ArrayKey, str],
+            array_specs: dict[ArrayKey, ArraySpec] | None = None,
+            channels_first: bool = True):
 
         self.filename = filename
         self.datasets = datasets
@@ -64,12 +83,12 @@ class Hdf5LikeSource(BatchProvider):
         self.channels_first = channels_first
 
         # number of spatial dimensions
-        self.ndims = None
+        self.ndims: int | None = None
 
-    def _open_file(self, filename):
+    def _open_file(self, filename: str) -> ContextManager[DataFile]:
         raise NotImplementedError('Only implemented in subclasses')
 
-    def setup(self):
+    def setup(self) -> None:
         with self._open_file(self.filename) as data_file:
             for (array_key, ds_name) in self.datasets.items():
 
@@ -80,7 +99,7 @@ class Hdf5LikeSource(BatchProvider):
 
                 self.provides(array_key, spec)
 
-    def provide(self, request):
+    def provide(self, request: BatchRequest) -> Batch:
 
         timing = Timing(self)
         timing.start()
@@ -115,19 +134,21 @@ class Hdf5LikeSource(BatchProvider):
 
         return batch
 
-    def _get_voxel_size(self, dataset):
+    def _get_voxel_size(self, dataset: SupportsAttrs) -> Coordinate | None:
         try:
             return Coordinate(dataset.attrs['resolution'])
         except Exception:  # todo: make specific when z5py supports it
             return None
 
-    def _get_offset(self, dataset):
+    def _get_offset(self, dataset: SupportsAttrs) -> Coordinate | None:
         try:
             return Coordinate(dataset.attrs['offset'])
         except Exception:  # todo: make specific when z5py supports it
             return None
 
-    def __read_spec(self, array_key, data_file, ds_name):
+    def __read_spec(
+        self, array_key: ArrayKey, data_file: DataFile, ds_name: str
+    ) -> ArraySpec:
 
         dataset = data_file[ds_name]
 
@@ -184,7 +205,7 @@ class Hdf5LikeSource(BatchProvider):
 
         return spec
 
-    def __read(self, data_file, ds_name, roi):
+    def __read(self, data_file: DataFile, ds_name: str, roi: Roi) -> np.ndarray:
 
         c = len(data_file[ds_name].shape) - self.ndims
 
@@ -197,6 +218,6 @@ class Hdf5LikeSource(BatchProvider):
 
         return array
 
-    def name(self):
+    def name(self) -> str:
 
         return super().name() + f"[{self.filename}]"

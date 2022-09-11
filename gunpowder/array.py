@@ -1,12 +1,20 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, NoReturn
+
 from .freezable import Freezable
 from copy import deepcopy
-from gunpowder.coordinate import Coordinate
-from gunpowder.roi import Roi
 import logging
 import numpy as np
 import copy
 
+if TYPE_CHECKING:
+    from gunpowder.array_spec import ArraySpec
+    from gunpowder.roi import Roi
+
+
 logger = logging.getLogger(__name__)
+
 
 class Array(Freezable):
     '''A numpy array with a specification describing the data.
@@ -26,9 +34,9 @@ class Array(Freezable):
 
             Optional attributes to describe this array.
     '''
-
-    def __init__(self, data, spec=None, attrs=None):
-
+    def __init__(
+        self, data: np.ndarray, spec: ArraySpec | None = None, attrs: dict | None = None
+    ):
         self.spec = deepcopy(spec)
         self.data = np.asarray(data)
         self.attrs = attrs
@@ -55,7 +63,7 @@ class Array(Freezable):
 
         self.freeze()
 
-    def crop(self, roi, copy=True):
+    def crop(self, roi: Roi, copy: bool = True) -> Array:
         '''Create a cropped copy of this Array.
 
         Args:
@@ -92,7 +100,9 @@ class Array(Freezable):
         spec.roi = deepcopy(roi)
         return Array(data, spec, attrs)
 
-    def merge(self, array, copy_from_self=False, copy=False):
+    def merge(
+        self, array: Array, copy_from_self: bool = False, copy: bool = False
+    ) -> NoReturn:
         '''Merge this array with another one. The resulting array will have the
         size of the larger one, with values replaced from ``array``.
 
@@ -146,10 +156,10 @@ class Array(Freezable):
 
         return merged
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self.spec)
 
-    def copy(self):
+    def copy(self) -> Array:
         '''Create a copy of this array.'''
         return copy.deepcopy(self)
 
@@ -171,21 +181,22 @@ class ArrayKey(Freezable):
             the same array.
     '''
 
-    def __init__(self, identifier):
+    def __init__(self, identifier: str):
         self.identifier = identifier
         self.hash = hash(identifier)
         self.freeze()
         logger.debug("Registering array key %s", self)
         setattr(ArrayKeys, self.identifier, self)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return hasattr(other, 'identifier') and self.identifier == other.identifier
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self.hash
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.identifier
+
 
 class ArrayKeys:
     '''Convenience access to all created :class:``ArrayKey``s. A key generated
@@ -197,4 +208,5 @@ class ArrayKeys:
 
         ArrayKeys.RAW
     '''
-    pass
+    def __getattribute__(self, name: str) -> ArrayKey:
+        return super().__getattribute__(name)

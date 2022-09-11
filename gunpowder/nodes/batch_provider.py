@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING, overload
+
 import numpy as np
 
 import copy
@@ -11,23 +14,29 @@ from gunpowder.array_spec import ArraySpec
 from gunpowder.graph import GraphKey
 from gunpowder.graph_spec import GraphSpec
 
+if TYPE_CHECKING:
+    from gunpowder.batch_request import BatchRequest
+    from gunpowder.batch import Batch
+    from gunpowder import Pipeline
+
 logger = logging.getLogger(__name__)
 
 
 class BatchRequestError(Exception):
 
-    def __init__(self, provider, request, batch):
+    def __init__(self, provider: BatchProvider, request: BatchRequest, batch: Batch):
         self.provider = provider
         self.request = request
         self.batch = batch
 
-    def __str__(self):
+    def __str__(self) -> str:
 
         return \
             f"Exception in {self.provider.name()} while processing request" \
             f"{self.request} \n" \
             "Batch returned so far:\n" \
             f"{self.batch}"
+
 
 class BatchProvider(object):
     '''Superclass for all nodes in a `gunpowder` graph.
@@ -44,26 +53,27 @@ class BatchProvider(object):
     exactly one upstream provider, consider subclassing :class:`BatchFilter`
     instead.
     '''
+    _provided_items: list[ArrayKey | GraphKey]
 
-    def add_upstream_provider(self, provider):
+    def add_upstream_provider(self, provider: BatchProvider) -> BatchProvider:
         self.get_upstream_providers().append(provider)
         return provider
 
-    def remove_upstream_providers(self):
+    def remove_upstream_providers(self) -> None:
         self.upstream_providers = []
 
-    def get_upstream_providers(self):
+    def get_upstream_providers(self) -> list[BatchProvider]:
         if not hasattr(self, 'upstream_providers'):
             self.upstream_providers = []
         return self.upstream_providers
 
     @property
-    def remove_placeholders(self):
+    def remove_placeholders(self) -> bool:
         if not hasattr(self, '_remove_placeholders'):
             return True
         return self._remove_placeholders
 
-    def setup(self):
+    def setup(self) -> None:
         '''To be implemented in subclasses.
 
         Called during initialization of the DAG. Callees can assume that all
@@ -74,7 +84,7 @@ class BatchProvider(object):
         '''
         raise NotImplementedError("Class %s does not implement 'setup'"%self.name())
 
-    def teardown(self):
+    def teardown(self) -> None:
         '''To be implemented in subclasses.
 
         Called during destruction of the DAG. Subclasses should use this to
@@ -82,7 +92,15 @@ class BatchProvider(object):
         '''
         pass
 
-    def provides(self, key, spec):
+    @overload
+    def provides(self, key: ArrayKey, spec: ArraySpec) -> None:
+        ...
+
+    @overload
+    def provides(self, key: GraphKey, spec: GraphSpec) -> None:
+        ...
+
+    def provides(self, key, spec) -> None:
         '''Introduce a new output provided by this :class:`BatchProvider`.
 
         Implementations should call this in their :func:`setup` method, which
@@ -113,11 +131,11 @@ class BatchProvider(object):
 
         logger.debug("%s provides %s with spec %s", self.name(), key, spec)
 
-    def _init_spec(self):
+    def _init_spec(self) -> None:
         if not hasattr(self, '_spec'):
             self._spec = None
 
-    def internal_teardown(self):
+    def internal_teardown(self) -> None:
 
         logger.debug("Resetting spec of %s", self.name())
         self._spec = None
@@ -126,7 +144,7 @@ class BatchProvider(object):
         self.teardown()
 
     @property
-    def spec(self):
+    def spec(self) -> ProviderSpec | None:
         '''Get the :class:`ProviderSpec` of this :class:`BatchProvider`.
 
         Note that the spec is only available after the pipeline has been build.
@@ -136,7 +154,7 @@ class BatchProvider(object):
         return self._spec
 
     @property
-    def provided_items(self):
+    def provided_items(self) -> list[ArrayKey | GraphKey]:
         '''Get a list of the keys provided by this :class:`BatchProvider`.
 
         This list is only available after the pipeline has been build. Before
@@ -148,7 +166,7 @@ class BatchProvider(object):
 
         return self._provided_items
 
-    def remove_provided(self, request):
+    def remove_provided(self, request: BatchRequest) -> None:
         '''Remove keys from `request` that are provided by this
         :class:`BatchProvider`.
         '''
@@ -157,7 +175,7 @@ class BatchProvider(object):
             if key in request:
                 del request[key]
 
-    def request_batch(self, request):
+    def request_batch(self, request: BatchRequest) -> Batch:
         '''Request a batch from this provider.
 
         Args:
@@ -200,13 +218,13 @@ class BatchProvider(object):
 
         return batch
 
-    def set_seeds(self, request):
+    def set_seeds(self, request: BatchRequest) -> None:
         seed = request.random_seed
         random.seed(seed)
         # augment uses numpy for its randomness
         np.random.seed(seed)
 
-    def check_request_consistency(self, request):
+    def check_request_consistency(self, request: BatchRequest) -> None:
 
         for (key, request_spec) in request.items():
 
@@ -255,7 +273,8 @@ class BatchProvider(object):
                         f"asked for {key}:  directed={request_spec.directed} but "
                         f"{self.name()} provides directed={provided_spec.directed}"
                     )
-    def check_batch_consistency(self, batch, request):
+
+    def check_batch_consistency(self, batch: Batch, request: BatchRequest) -> None:
 
         for (array_key, request_spec) in request.array_specs.items():
 
@@ -325,17 +344,17 @@ class BatchProvider(object):
                     f"'dangling'"
                 )
 
-    def remove_unneeded(self, batch, request):
+    def remove_unneeded(self, batch: Batch, request: BatchRequest) -> None:
 
         batch_keys = set(list(batch.arrays.keys()) + list(batch.graphs.keys()))
         for key in batch_keys:
             if key not in request:
                 del batch[key]
 
-    def enable_placeholders(self):
+    def enable_placeholders(self) -> None:
         self._remove_placeholders = False
 
-    def provide(self, request):
+    def provide(self, request: BatchRequest) -> Batch:
         '''To be implemented in subclasses.
 
         This function takes a :class:`BatchRequest` and should return the
@@ -349,14 +368,14 @@ class BatchProvider(object):
         '''
         raise NotImplementedError("Class %s does not implement 'provide'"%self.name())
 
-    def name(self):
+    def name(self) -> str:
         return type(self).__name__
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         return self.name() + ", providing: " + str(self.spec)
 
-    def __add__(self, other):
+    def __add__(self, other: BatchProvider | Pipeline) -> Pipeline:
         '''Support ``self + other`` operator. Return a :class:`Pipeline`.'''
         from gunpowder import Pipeline
 
@@ -370,7 +389,7 @@ class BatchProvider(object):
 
         return Pipeline(self) + other
 
-    def __radd__(self, other):
+    def __radd__(self, other: BatchProvider | tuple) -> Pipeline:
         '''Support ``other + self`` operator. Return a :class:`Pipeline`.'''
         from gunpowder import Pipeline
 

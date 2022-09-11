@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 import copy
+from typing import TYPE_CHECKING
+
 from .provider_spec import ProviderSpec
 from .roi import Roi
 from .array import ArrayKey
@@ -8,6 +12,9 @@ from .graph_spec import GraphSpec
 
 from warnings import warn
 import time
+
+if TYPE_CHECKING:
+    from gunpowder.coordinate import Coordinate
 
 
 class BatchRequest(ProviderSpec):
@@ -28,13 +35,20 @@ class BatchRequest(ProviderSpec):
 
     """
 
-    def __init__(self, *args, random_seed=None, **kwargs):
+    def __init__(self, *args, random_seed: int | None = None, **kwargs) -> None:
         self._random_seed = (
             random_seed if random_seed is not None else int(time.time() * 1e6)
         )
         super().__init__(*args, **kwargs)
 
-    def add(self, key, shape, voxel_size=None, directed=None, placeholder=False):
+    def add(
+        self,
+        key: ArrayKey | GraphKey,
+        shape: Coordinate,
+        voxel_size: Coordinate | None = None,
+        directed: bool | None = None,
+        placeholder: bool | None = False,
+    ) -> None:
         """Convenience method to add an array or graph spec by providing only
         the shape of a ROI (in world units).
 
@@ -73,18 +87,18 @@ class BatchRequest(ProviderSpec):
         self[key] = spec
         self.__center_rois()
 
-    def copy(self):
+    def copy(self) -> BatchRequest:
         """Create a copy of this request."""
         return copy.deepcopy(self)
 
     @property
-    def random_seed(self):
+    def random_seed(self) -> int:
         return self._random_seed % (2 ** 32)
 
-    def _update_random_seed(self):
+    def _update_random_seed(self) -> None:
         self._random_seed = hash((self._random_seed + 1) ** 2)
 
-    def __center_rois(self):
+    def __center_rois(self) -> None:
         """Ensure that all ROIs are centered around the same location."""
 
         total_roi = self.get_total_roi()
@@ -98,7 +112,7 @@ class BatchRequest(ProviderSpec):
                 roi = specs_type[key].roi
                 specs_type[key].roi = roi.shift(center - roi.get_center())
 
-    def update_with(self, request):
+    def update_with(self, request: BatchRequest) -> None:
         """Update current request with another"""
 
         assert isinstance(request, BatchRequest)
@@ -113,7 +127,7 @@ class BatchRequest(ProviderSpec):
 
         return merged
 
-    def merge(self, request):
+    def merge(self, request: BatchRequest) -> BatchRequest:
         """Merge another request with current request"""
         warn(
             "merge is deprecated! please use update_with "
@@ -134,7 +148,7 @@ class BatchRequest(ProviderSpec):
 
         return merged
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """
         Override equality check to allow batche requests with different
         seeds to still be checked. Otherwise equality check should

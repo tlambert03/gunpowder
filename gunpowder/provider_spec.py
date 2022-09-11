@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 import math
+from typing import Iterable, Sequence, overload
+import warnings
 from gunpowder.coordinate import Coordinate
 from gunpowder.array import ArrayKey
 from gunpowder.array_spec import ArraySpec
@@ -6,17 +10,11 @@ from gunpowder.graph import GraphKey
 from gunpowder.graph_spec import GraphSpec
 from gunpowder.roi import Roi
 from .freezable import Freezable
-import time
 import logging
 import copy
 
 logger = logging.getLogger(__name__)
 
-
-import logging
-import warnings
-
-logger = logging.getLogger(__file__)
 
 class ProviderSpec(Freezable):
     '''A collection of (possibly partial) :class:`ArraySpecs<ArraySpec>` and
@@ -63,10 +61,15 @@ class ProviderSpec(Freezable):
             Contains all graph specs contained in this provider spec.
     '''
 
-    def __init__(self, array_specs=None, graph_specs=None, points_specs=None):
+    def __init__(
+        self,
+        array_specs: dict[ArrayKey, ArraySpec] | None = None,
+        graph_specs: dict[GraphKey, GraphSpec] | None = None,
+        points_specs: dict[GraphKey, GraphSpec] | None = None,
+    ) -> None:
 
-        self.array_specs = {}
-        self.graph_specs = {}
+        self.array_specs: dict[ArrayKey, ArraySpec] = {}
+        self.graph_specs: dict[GraphKey, GraphSpec] = {}
         self.freeze()
 
         # use __setitem__ instead of copying the dicts, this ensures type tests
@@ -82,12 +85,17 @@ class ProviderSpec(Freezable):
                 self[key] = spec
 
     @property
-    def points_specs(self):
+    def points_specs(self) -> dict[GraphKey, GraphSpec]:
         # Alias to graphs
         warnings.warn(
             "points_specs are depricated. Please use graph_specs", DeprecationWarning
         )
         return self.graph_specs
+
+    @overload
+    def __setitem__(self, key: ArrayKey, spec: Roi | ArraySpec) -> None: ...
+    @overload
+    def __setitem__(self, key: GraphKey, spec: Roi | GraphSpec) -> None: ...
 
     def __setitem__(self, key, spec):
 
@@ -117,6 +125,11 @@ class ProviderSpec(Freezable):
 
             self.graph_specs[key] = spec.copy()
 
+    @overload
+    def __getitem__(self, key: ArrayKey) -> ArraySpec: ...
+    @overload
+    def __getitem__(self, key: GraphKey) -> GraphSpec: ...
+
     def __getitem__(self, key):
 
         if isinstance(key, ArrayKey):
@@ -129,11 +142,11 @@ class ProviderSpec(Freezable):
                 "Only ArrayKey or GraphKey can be used as keys in a "
                 "%s."%type(self).__name__)
 
-    def __len__(self):
+    def __len__(self) -> int:
 
         return len(self.array_specs) + len(self.graph_specs)
 
-    def __contains__(self, key):
+    def __contains__(self, key: ArrayKey | GraphKey) -> bool:
 
         if isinstance(key, ArrayKey):
             return key in self.array_specs
@@ -146,7 +159,7 @@ class ProviderSpec(Freezable):
                 "Only ArrayKey or GraphKey, can be used as keys in a "
                 "%s. Key %s is a %s"%(type(self).__name__, key, type(key).__name__))
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: ArrayKey | GraphKey) -> None:
 
         if isinstance(key, ArrayKey):
             del self.array_specs[key]
@@ -163,15 +176,12 @@ class ProviderSpec(Freezable):
         self.array_specs = {k: v for k, v in self.array_specs.items() if not v.placeholder}
         self.graph_specs = {k: v for k, v in self.graph_specs.items() if not v.placeholder}
 
-    def items(self):
+    def items(self) -> Iterable[tuple[ArrayKey, ArraySpec] | tuple[GraphKey, GraphSpec]]:
         '''Provides a generator iterating over key/value pairs.'''
+        yield from self.array_specs.items()
+        yield from self.graph_specs.items()
 
-        for (k, v) in self.array_specs.items():
-            yield k, v
-        for (k, v) in self.graph_specs.items():
-            yield k, v
-
-    def get_total_roi(self):
+    def get_total_roi(self) -> Roi | None:
         '''Get the union of all the ROIs.'''
 
         total_roi = None
@@ -183,7 +193,7 @@ class ProviderSpec(Freezable):
                     total_roi = total_roi.union(spec.roi)
         return total_roi
 
-    def get_common_roi(self):
+    def get_common_roi(self) -> Roi | None:
         '''Get the intersection of all the requested ROIs.'''
 
         common_roi = None
@@ -196,7 +206,9 @@ class ProviderSpec(Freezable):
 
         return common_roi
 
-    def get_lcm_voxel_size(self, array_keys=None):
+    def get_lcm_voxel_size(
+        self, array_keys: Sequence[ArrayKey] | None = None
+    ) -> Coordinate | None:
         '''Get the least common multiple of the voxel sizes in this spec.
 
         Args:
@@ -225,7 +237,7 @@ class ProviderSpec(Freezable):
 
         return lcm_voxel_size
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
 
         if isinstance(other, self.__class__):
             other_dict = copy.deepcopy(other.__dict__)
@@ -233,13 +245,13 @@ class ProviderSpec(Freezable):
             return self_dict == other_dict
         return NotImplemented
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
 
         if isinstance(other, self.__class__):
             return not self.__eq__(other)
         return NotImplemented
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         r = "\n"
         for (key, spec) in self.items():

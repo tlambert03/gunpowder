@@ -1,6 +1,14 @@
+from __future__ import annotations
+
 import copy
+from typing import TYPE_CHECKING
 from .coordinate import Coordinate
 from .freezable import Freezable
+
+if TYPE_CHECKING:
+    from gunpowder.roi import Roi
+    import numpy as np
+
 
 class ArraySpec(Freezable):
     '''Contains meta-information about an array. This is used by
@@ -38,12 +46,12 @@ class ArraySpec(Freezable):
 
     def __init__(
             self,
-            roi=None,
-            voxel_size=None,
-            interpolatable=None,
-            nonspatial=False,
-            dtype=None,
-            placeholder=False):
+            roi: Roi | None = None,
+            voxel_size: Coordinate | None = None,
+            interpolatable: bool | None = None,
+            nonspatial: bool | None = False,
+            dtype: np.dtype | None = None,
+            placeholder: bool | None = False):
 
         self.roi = roi
         self.voxel_size = None if voxel_size is None else Coordinate(voxel_size)
@@ -59,7 +67,7 @@ class ArraySpec(Freezable):
 
         self.freeze()
 
-    def update_with(self, spec):
+    def update_with(self, spec: ArraySpec) -> None:
         if self.roi is not None and \
            spec.roi is not None:
             self.roi = self.roi.union(spec.roi)
@@ -81,23 +89,23 @@ class ArraySpec(Freezable):
         if spec.placeholder is not None:
             self.placeholder = spec.placeholder
 
-    def copy(self):
+    def copy(self) -> ArraySpec:
         '''Create a copy of this spec.'''
         return copy.deepcopy(self)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
 
         if isinstance(other, self.__class__):
             return self.__dict__ == other.__dict__
         return NotImplemented
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
 
         if isinstance(other, self.__class__):
             return not self.__eq__(other)
         return NotImplemented
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         r = ""
         r += "ROI: " + str(self.roi) + ", "
         r += "voxel size: " + str(self.voxel_size) + ", "
