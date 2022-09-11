@@ -1,8 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 import numpy as np
 
 import copy
 
 from .freezable import Freezable
+
+if TYPE_CHECKING:
+    from gunpowder.roi import Roi
 
 
 class GraphSpec(Freezable):
@@ -26,7 +32,13 @@ class GraphSpec(Freezable):
             Currently only supports np.float32.
     """
 
-    def __init__(self, roi=None, directed=None, dtype=np.float32, placeholder=False):
+    def __init__(
+        self,
+        roi: Roi | None = None,
+        directed: bool | None = None,
+        dtype: np.dtype = np.float32,
+        placeholder: bool | None = False,
+    ):
 
         self.roi = roi
         self.directed = directed
@@ -35,7 +47,7 @@ class GraphSpec(Freezable):
 
         self.freeze()
 
-    def update_with(self, spec):
+    def update_with(self, spec: GraphSpec) -> None:
         if self.roi is not None and \
            spec.roi is not None:
             self.roi = self.roi.union(spec.roi)
@@ -51,23 +63,23 @@ class GraphSpec(Freezable):
         if spec.placeholder is not None:
             self.placeholder = spec.placeholder
 
-    def copy(self):
+    def copy(self) -> GraphSpec:
         """Create a copy of this spec."""
         return copy.deepcopy(self)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
 
         if isinstance(other, self.__class__):
             return self.__dict__ == other.__dict__
         return NotImplemented
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
 
         if isinstance(other, self.__class__):
             return not self.__eq__(other)
         return NotImplemented
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         r = ""
         r += "ROI: " + str(self.roi) + ", "
         r += "dtype: " + str(self.dtype) + ", "

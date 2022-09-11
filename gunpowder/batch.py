@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 from copy import copy as shallow_copy
 import logging
 import multiprocessing
-import warnings
+from typing import TYPE_CHECKING, Iterator, overload
+
+from gunpowder.batch_request import BatchRequest
 
 from .freezable import Freezable
 from .profiling import ProfilingStats
@@ -9,6 +13,11 @@ from .array import Array, ArrayKey
 from .graph import Graph, GraphKey
 
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from gunpowder.roi import Roi
+
 
 class Batch(Freezable):
     '''Contains the requested batch as a collection of :class:`Arrays<Array>`
@@ -47,7 +56,7 @@ class Batch(Freezable):
     __next_id = multiprocessing.Value('L')
 
     @staticmethod
-    def get_next_id():
+    def get_next_id() -> int:
         with Batch.__next_id.get_lock():
             next_id = Batch.__next_id.value
             Batch.__next_id.value += 1
@@ -55,15 +64,20 @@ class Batch(Freezable):
 
     def __init__(self):
 
-        self.id = Batch.get_next_id()
+        self.id: int = Batch.get_next_id()
         self.profiling_stats = ProfilingStats()
-        self.arrays = {}
-        self.graphs = {}
-        self.affinity_neighborhood = None
-        self.loss = None
-        self.iteration = None
+        self.arrays: dict[ArrayKey, Array] = {}
+        self.graphs: dict[GraphKey, Graph] = {}
+        self.affinity_neighborhood: ArrayKey | None = None
+        self.loss: float | None = None
+        self.iteration: int | None = None
 
         self.freeze()
+    
+    @overload
+    def __setitem__(self, key: ArrayKey, value: Array) -> None: ...
+    @overload
+    def __setitem__(self, key: GraphKey, value: Graph) -> None: ...
 
     def __setitem__(self, key, value):
 
@@ -82,6 +96,11 @@ class Batch(Freezable):
             raise RuntimeError(
                 "Only Array or Graph can be set in a %s."%type(self).__name__)
 
+    @overload
+    def __getitem__(self, key: ArrayKey) -> Array: ...
+    @overload
+    def __getitem__(self, key: GraphKey) -> Graph: ...
+
     def __getitem__(self, key):
 
         if isinstance(key, ArrayKey):
@@ -95,11 +114,11 @@ class Batch(Freezable):
                 "Only ArrayKey or GraphKey can be used as keys in a "
                 "%s."%type(self).__name__)
 
-    def __len__(self):
+    def __len__(self) -> int:
 
         return len(self.arrays) + len(self.graphs)
 
-    def __contains__(self, key):
+    def __contains__(self, key: ArrayKey | GraphKey) -> bool:
 
         if isinstance(key, ArrayKey):
             return key in self.arrays
@@ -112,7 +131,7 @@ class Batch(Freezable):
                 "Only ArrayKey or GraphKey can be used as keys in a "
                 "%s. Key %s is a %s"%(type(self).__name__, key, type(key).__name__))
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: ArrayKey | GraphKey) -> None:
 
         if isinstance(key, ArrayKey):
             del self.arrays[key]
@@ -125,15 +144,12 @@ class Batch(Freezable):
                 "Only ArrayKey or GraphKey can be used as keys in a "
                 "%s."%type(self).__name__)
 
-    def items(self):
+    def items(self) -> Iterator[tuple[ArrayKey, Array] | tuple[GraphKey, Graph]]:
         '''Provides a generator iterating over key/value pairs.'''
+        yield from self.arrays.items()
+        yield from self.graphs.items()
 
-        for (k, v) in self.arrays.items():
-            yield k, v
-        for (k, v) in self.graphs.items():
-            yield k, v
-
-    def get_total_roi(self):
+    def get_total_roi(self) -> Roi | None:
         '''Get the union of all the array ROIs in the batch.'''
 
         total_roi = None
@@ -153,7 +169,7 @@ class Batch(Freezable):
 
         return total_roi
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         r = "\n"
         for collection_type in [self.arrays, self.graphs]:
@@ -161,7 +177,7 @@ class Batch(Freezable):
                 r += "\t%s: %s\n"%(key, obj.spec)
         return r
 
-    def crop(self, request, copy=False):
+    def crop(self, request: BatchRequest, copy: bool = False) -> Batch:
         '''Crop batch to meet the given request.'''
 
         cropped = Batch()
@@ -181,7 +197,7 @@ class Batch(Freezable):
 
         return cropped
 
-    def merge(self, batch, merge_profiling_stats=True):
+    def merge(self, batch: Batch, merge_profiling_stats: bool = True) -> Batch:
         '''Merge this batch (``a``) with another batch (``b``).
 
         This creates a new batch ``c`` containing arrays and graphs from

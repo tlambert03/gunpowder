@@ -1,8 +1,17 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING, Callable
 from gunpowder.nodes import BatchProvider
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from typing import TypeVar
+    from gunpowder.batch import Batch
+    from gunpowder.batch_request import BatchRequest
+
+    T = TypeVar("T")
 
 class PipelineSetupError(Exception):
 
@@ -43,18 +52,18 @@ class PipelineRequestError(Exception):
 
 class Pipeline:
 
-    def __init__(self, node):
+    def __init__(self, node: BatchProvider) -> None:
         '''Create a pipeline from a single :class:`BatchProvider`.
         '''
 
         assert isinstance(node, BatchProvider), \
             f"{type(node)} is not a BatchProvider"
 
-        self.output = node
-        self.children = []
-        self.initialized = False
+        self.output: BatchProvider = node
+        self.children: list[Pipeline] = []
+        self.initialized: bool = False
 
-    def traverse(self, callback, reverse=False):
+    def traverse(self, callback: Callable[[Pipeline], T], reverse: bool = False) -> list[T]:
         '''Visit every node in the pipeline recursively (either from root to
         leaves of from leaves to the root if ``reverse`` is true). ``callback``
         will be called for each node encountered.'''
@@ -70,7 +79,7 @@ class Pipeline:
 
         return result
 
-    def copy(self):
+    def copy(self) -> Pipeline:
         '''Make a shallow copy of the pipeline.'''
 
         pipeline = Pipeline(self.output)
@@ -78,7 +87,7 @@ class Pipeline:
 
         return pipeline
 
-    def setup(self):
+    def setup(self) -> None:
         '''Connect all batch providers in the pipeline and call setup for
         each, from source to sink.'''
 
@@ -107,7 +116,7 @@ class Pipeline:
                 "pipeline.setup() called more than once (build() inside "
                 "build()?)")
 
-    def internal_teardown(self):
+    def internal_teardown(self) -> None:
         '''Call teardown on each batch provider in the pipeline and disconnect
         all nodes.'''
 
@@ -133,7 +142,7 @@ class Pipeline:
 
             self.traverse(disconnect)
 
-    def request_batch(self, request):
+    def request_batch(self, request: BatchRequest) -> Batch:
         '''Request a batch from the pipeline.'''
 
         try:
@@ -145,7 +154,7 @@ class Pipeline:
     def spec(self):
         return self.output.spec
 
-    def __add__(self, other):
+    def __add__(self, other: BatchProvider | Pipeline) -> Pipeline:
 
         if isinstance(other, BatchProvider):
             other = Pipeline(other)
@@ -168,7 +177,7 @@ class Pipeline:
 
         return result
 
-    def __radd__(self, other):
+    def __radd__(self, other: tuple[BatchProvider | Pipeline, ...]) -> Pipeline:
 
         assert isinstance(other, tuple), \
             f"Don't know how to radd {type(other)} to Pipeline"
@@ -196,7 +205,7 @@ class Pipeline:
 
         return result
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         def to_string(node):
             return node.output.name()
